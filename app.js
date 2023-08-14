@@ -1,0 +1,156 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const auth = require("./auth");
+const jwt = require("jsonwebtoken");
+const { secretKey } = require("./config");
+const bcrypt = require("bcrypt");
+const cors = require("cors");
+
+const app = express();
+app.use(bodyParser.json());
+app.use(cors())
+
+// User Register
+app.post("/api/register", (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ message: "Username and password are required" });
+  }
+  const existingUser = auth.findUserByUsername(username);
+  if (existingUser) {
+    return res.status(409).json({ message: "Username already exists" });
+  }
+  const newUser = auth.createUser(username, password);
+  res.status(201).json(newUser);
+});
+
+// User login
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  const user = auth.authenticateUser(username, password);
+  if (!user) {
+    return res.status(401).json({ message: "Authentication failed" });
+  }
+  const token = auth.generateAuthToken(user);
+  res.json({ token });
+});
+
+// Protected route
+app.get("/api/users", (req, res) => {
+  const token = req.header("Authorization");
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token missing" });
+  }
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+    const users = auth.getAllUsers();
+    res.json(users);
+  });
+});
+
+// Create User
+app.post("/api/users", (req, res) => {
+
+  const token = req.header("Authorization");
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token missing" });
+  }
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+  });
+
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ message: "Username and password are required" });
+  }
+  const existingUser = auth.findUserByUsername(username);
+  if (existingUser) {
+    return res.status(409).json({ message: "Username already exists" });
+  }
+  const newUser = auth.createUser(username, password);
+  res.status(201).json(newUser);
+});
+
+// Get User By Id
+app.get("/api/users/:id", (req, res) => {
+
+  const token = req.header("Authorization");
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token missing" });
+  }
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+  });
+
+  const userId = req.params.id;
+
+  res.json(auth.findUserById(userId));
+
+});
+
+// Update a user's password
+app.put("/api/users/:id", (req, res) => {
+
+  const token = req.header("Authorization");
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token missing" });
+  }
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+  });
+
+  const userId = req.params.id;
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ message: "Username is required" });
+  }
+
+  const user = auth.findUserById(userId);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  user.username = username;
+  auth.updateUser(user);
+  res.json({ message: "UserName Updated Successfully" });
+});
+
+// Delete a user
+app.delete("/api/users/:id", (req, res) => {
+
+  const token = req.header("Authorization");
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token missing" });
+  }
+  jwt.verify(token, secretKey, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Invalid token" });
+    }
+  });
+  
+  const userId = req.params.id;
+  const user = auth.findUserById(userId);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+  auth.deleteUser(userId);
+  res.json({ message: "User deleted successfully" });
+});
+
+// Start the server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
